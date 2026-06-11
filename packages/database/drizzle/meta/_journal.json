@@ -547,6 +547,13 @@
       "when": 1785394408114,
       "tag": "0077_sloppy_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1785395261295,
+      "tag": "0078_flashy_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

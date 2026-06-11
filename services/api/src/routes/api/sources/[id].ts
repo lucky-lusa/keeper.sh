@@ -41,6 +41,7 @@ const GET = withWideEvent(
         ingestFailureCount: calendarsTable.ingestFailureCount,
         ingestLastFailureAt: calendarsTable.ingestLastFailureAt,
         providerMissingSince: calendarsTable.providerMissingSince,
+        markEventsAsPrivate: calendarsTable.markEventsAsPrivate,
         createdAt: calendarsTable.createdAt,
         updatedAt: calendarsTable.updatedAt,
       })

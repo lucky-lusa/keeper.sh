@@ -138,6 +138,7 @@ const outlookEventSchema = type({
   "location?": { "displayName?": "string" },
   "originalEndTimeZone?": "string",
   "originalStartTimeZone?": "string",
+  "sensitivity?": "string",
   "showAs?": "string",
   "start?": { "dateTime?": "string", "timeZone?": "string" },
   "subject?": "string",
