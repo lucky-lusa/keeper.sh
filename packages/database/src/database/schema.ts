@@ -110,6 +110,7 @@ const calendarsTable = pgTable(
     ingestFailureCount: integer().notNull().default(0),
     ingestLastFailureAt: timestamp(),
     ingestNextAttemptAt: timestamp(),
+    providerMissingSince: timestamp(),
     externalCalendarId: text(),
     id: uuid().notNull().primaryKey().defaultRandom(),
     capabilities: text().array().notNull().default(["pull"]),

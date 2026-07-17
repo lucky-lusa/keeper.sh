@@ -9,6 +9,7 @@ type CalendarIdsBody = typeof calendarIdsBodySchema.infer;
 const sourcePatchBodySchema = type({
   "name?": "string",
   "customEventName?": "string",
+  "disabled?": "boolean",
   "excludeAllDayEvents?": "boolean",
   "excludeEventDescription?": "boolean",
   "excludeEventLocation?": "boolean",

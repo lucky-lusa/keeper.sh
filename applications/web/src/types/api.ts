@@ -28,6 +28,8 @@ export interface CalendarSource {
   accountIdentifier: string | null;
   needsReauthentication: boolean;
   includeInIcalFeed: boolean;
+  disabled: boolean;
+  providerMissingSince: string | null;
 }
 
 export interface CalendarDetail {
@@ -49,6 +51,10 @@ export interface CalendarDetail {
   excludeFocusTime: boolean;
   excludeOutOfOffice: boolean;
   treatFullDayTimedEventsAsAllDay: boolean;
+  disabled: boolean;
+  ingestFailureCount: number;
+  ingestLastFailureAt: string | null;
+  providerMissingSince: string | null;
   destinationIds: string[];
   sourceIds: string[];
   createdAt: string;

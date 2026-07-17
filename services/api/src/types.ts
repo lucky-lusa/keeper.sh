@@ -25,6 +25,8 @@ interface KeeperSource {
   accountIdentifier: string;
   needsReauthentication: boolean;
   includeInIcalFeed: boolean;
+  disabled: boolean;
+  providerMissingSince: string | null;
   providerName: string;
   providerIcon: string | null;
   accountLabel: string;

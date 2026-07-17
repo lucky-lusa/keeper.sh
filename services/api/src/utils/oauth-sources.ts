@@ -616,7 +616,7 @@ interface ImportOAuthAccountDependencies {
     accountId: string,
     calendars: ExternalCalendar[],
   ) => Promise<void>;
-  listCalendars: (provider: string, accessToken: string) => Promise<ExternalCalendar[]>;
+  listCalendars: (provider: string, accessToken: string, ownerEmail: string | null) => Promise<ExternalCalendar[]>;
   triggerSync: (userId: string, provider: string) => void;
 }
 
@@ -687,14 +687,14 @@ const createDefaultImportOAuthAccountDependencies = (): ImportOAuthAccountDepend
         })),
       );
   },
-  listCalendars: async (provider, accessToken) => {
+  listCalendars: async (provider, accessToken, ownerEmail) => {
     try {
       if (provider === "google") {
         const calendars = await listGoogleCalendars(accessToken);
         return calendars.map((calendar) => ({ externalId: calendar.id, name: calendar.summary }));
       }
       if (provider === "outlook") {
-        const calendars = await listOutlookCalendars(accessToken);
+        const calendars = await listOutlookCalendars(accessToken, ownerEmail);
         return calendars.map((calendar) => ({ externalId: calendar.id, name: calendar.name }));
       }
       throw new Error(`No calendar listing support for provider: ${provider}`);
@@ -746,7 +746,7 @@ const importOAuthAccountCalendarsWithDependencies = async (
     });
   }
 
-  const externalCalendars = await dependencies.listCalendars(provider, accessToken);
+  const externalCalendars = await dependencies.listCalendars(provider, accessToken, email);
   const newCalendars = await dependencies.getUnimportedExternalCalendars(
     userId,
     accountId,
@@ -859,7 +859,7 @@ const importOAuthAccountCalendars = async (
   const dependencies = createDefaultImportOAuthAccountDependencies();
 
   const plan = await premiumService.getUserPlan(options.userId);
-  const externalCalendars = await dependencies.listCalendars(options.provider, options.accessToken);
+  const externalCalendars = await dependencies.listCalendars(options.provider, options.accessToken, options.email);
 
   return database.transaction(async (tx) => {
     await tx.execute(
