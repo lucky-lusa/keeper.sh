@@ -414,11 +414,10 @@ const syncDestinationsForUser = async (
       removeFailed += result.removeFailed;
       errors.push(...result.errors);
     } catch (error) {
-      if (!isBackoffEligibleError(error)) {
-        throw error;
+      if (isBackoffEligibleError(error)) {
+        await applyDestinationBackoff(database, destination.calendarId, destination.failureCount);
       }
 
-      await applyDestinationBackoff(database, destination.calendarId, destination.failureCount);
       errors.push(getErrorMessage(error));
       callbacks?.onCalendarError?.({
         provider: destination.provider,
