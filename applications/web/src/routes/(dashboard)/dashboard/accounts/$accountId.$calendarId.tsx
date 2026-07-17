@@ -1,5 +1,5 @@
-import { use, useEffect, useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { use, useEffect, useMemo, useState, useTransition } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import useSWR, { preload, useSWRConfig } from "swr";
 import CheckIcon from "lucide-react/dist/esm/icons/check";
 import { useAtomValue, useStore } from "jotai";
@@ -14,11 +14,14 @@ import { DashboardHeading1, DashboardSection } from "@/components/ui/primitives/
 import { apiFetch, fetcher } from "@/lib/fetcher";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { serializedPatch, serializedCall } from "@/lib/serialized-mutate";
+import { invalidateAccountsAndSources } from "@/lib/swr";
 import { formatDate } from "@/lib/time";
+import { resolveErrorMessage } from "@/utils/errors";
 import { canPull, canPush } from "@/utils/calendars";
 import type { CalendarAccount, CalendarDetail, CalendarSource } from "@/types/api";
 import {
   NavigationMenu,
+  NavigationMenuButtonItem,
   NavigationMenuEmptyItem,
   NavigationMenuItemIcon,
   NavigationMenuItemLabel,
@@ -39,11 +42,11 @@ import {
 } from "@/components/ui/composites/navigation-menu/navigation-menu.styles";
 import { Text } from "@/components/ui/primitives/text";
 import { TemplateText } from "@/components/ui/primitives/template-text";
+import { DeleteConfirmation } from "@/components/ui/primitives/delete-confirmation";
 import {
   calendarDetailAtom,
   calendarDetailLoadedAtom,
   calendarDetailErrorAtom,
-  calendarDisabledAtom,
   calendarNameAtom,
   calendarProviderAtom,
   calendarProviderMissingSinceAtom,
@@ -152,7 +155,6 @@ function CalendarDetailPage() {
       <CalendarHeader account={account} />
       <ProviderMissingNotice />
       <RenameSection calendarId={calendarId} />
-      <SyncStatusSection calendarId={calendarId} />
       {isPullCapable && (
         <>
           <DashboardSection
@@ -165,6 +167,7 @@ function CalendarDetailPage() {
       {isPullCapable && <SyncSettingsSection calendarId={calendarId} />}
       {isPullCapable && <ExclusionsSection calendarId={calendarId} provider={calendar.provider} />}
       <CalendarInfoSection account={account} accountId={accountId} />
+      <DeleteCalendarSection accountId={accountId} calendarId={calendarId} />
     </div>
   );
 }
@@ -268,54 +271,54 @@ function ProviderMissingNotice() {
     <Text size="sm" tone="danger" className="px-0.5">
       This calendar was not found the last time its connection was refreshed
       (since {formatDate(providerMissingSince)}) - it may have been deleted or renamed at the
-      provider. Refresh the connection again to confirm, or disable syncing for it below.
+      provider. Refresh the connection again to confirm, or remove the calendar below.
     </Text>
   );
 }
 
-function SyncStatusSection({ calendarId }: { calendarId: string }) {
-  return (
-    <>
-      <DashboardSection
-        title="Sync Status"
-        description="Turn syncing off for this calendar without disconnecting the whole account."
-      />
-      <NavigationMenu>
-        <SyncEnabledToggle calendarId={calendarId} />
-      </NavigationMenu>
-    </>
-  );
-}
+function DeleteCalendarSection({ accountId, calendarId }: { accountId: string; calendarId: string }) {
+  const { mutate: globalMutate } = useSWRConfig();
+  const navigate = useNavigate();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDeleting, startDeleteTransition] = useTransition();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-function SyncEnabledToggle({ calendarId }: { calendarId: string }) {
-  const store = useStore();
-  const variant = use(MenuVariantContext);
-  const disabled = useAtomValue(calendarDisabledAtom);
+  const handleConfirmDelete = () => {
+    setDeleteError(null);
 
-  const handleClick = () => {
-    const current = store.get(calendarDetailAtom);
-    if (!current) return;
-
-    const nextDisabled = !current.disabled;
-    track(ANALYTICS_EVENTS.calendar_setting_toggled, { enabled: !nextDisabled, field: "disabled" });
-    store.set(calendarDetailAtom, (prev) => (prev ? { ...prev, disabled: nextDisabled } : prev));
-    patchSource(store, calendarId, { disabled: nextDisabled });
+    startDeleteTransition(async () => {
+      try {
+        await apiFetch(`/api/sources/${calendarId}`, { method: "DELETE" });
+        track(ANALYTICS_EVENTS.source_calendar_deleted);
+        await invalidateAccountsAndSources(globalMutate, `/api/accounts/${accountId}`);
+        navigate({ to: `/dashboard/accounts/${accountId}` });
+      } catch (err) {
+        setDeleteError(resolveErrorMessage(err, "Failed to delete calendar."));
+      }
+    });
   };
 
   return (
-    <li>
-      <button
-        type="button"
-        role="switch"
-        onClick={handleClick}
-        className={navigationMenuItemStyle({ variant, interactive: true })}
-      >
-        <NavigationMenuItemLabel>Sync Enabled</NavigationMenuItemLabel>
-        <div className={navigationMenuToggleTrack({ variant, checked: !disabled, disabled: false, className: "ml-auto" })}>
-          <div className={navigationMenuToggleThumb({ variant, checked: !disabled })} />
-        </div>
-      </button>
-    </li>
+    <>
+      <DashboardSection
+        title="Remove Calendar"
+        description="Stop syncing this calendar and remove it from Keeper.sh. It will be re-imported the next time you refresh the account's calendars, unless it no longer exists at the provider."
+      />
+      <NavigationMenu>
+        <NavigationMenuButtonItem onClick={() => setDeleteOpen(true)}>
+          <Text size="sm" tone="danger">Delete Calendar</Text>
+        </NavigationMenuButtonItem>
+      </NavigationMenu>
+      {deleteError && <Text size="sm" tone="danger" className="px-0.5">{deleteError}</Text>}
+      <DeleteConfirmation
+        title="Delete this calendar?"
+        description="This removes the calendar and its sync history from Keeper.sh. Any sync profiles using it will be affected."
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        deleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
+    </>
   );
 }
 
