@@ -1,5 +1,6 @@
 import type { SyncableEvent } from "../types";
 import { resolveIsAllDayEvent } from "./all-day";
+import { htmlToPlainText, isHtmlDescription } from "./html-description";
 import stringify from "fast-json-stable-stringify";
 
 type SyncableEventContent = Pick<SyncableEvent, "summary" | "description" | "location">
@@ -18,6 +19,18 @@ type SyncableEventContent = Pick<SyncableEvent, "summary" | "description" | "loc
 
 const normalizeText = (value?: string): string =>
   value?.replaceAll(/\r\n?/g, "\n").trim() ?? "";
+/*
+ * CalDAV destinations write HTML descriptions as plain text (see caldav/shared/ics.ts) and
+ * therefore read them back as plain text, so the editable-content comparison must hash the same
+ * plain-text form on both sides. Hashing raw HTML locally against a plain-text readback would
+ * mark every HTML-description event as perpetually changed, causing an endless re-push loop.
+ */
+const normalizeEditableDescription = (value = ""): string => {
+  if (isHtmlDescription(value)) {
+    return normalizeText(htmlToPlainText(value));
+  }
+  return normalizeText(value);
+};
 const normalizeAvailability = (value?: SyncableEvent["availability"]): string => value ?? "busy";
 const resolveHashedAllDay = (event: SyncableEventContent): boolean => {
   if (event.startTime && event.endTime) {
@@ -53,7 +66,7 @@ const createSyncEventContentHash = (event: SyncableEventContent): string => {
 const createEditableEventContentHash = (event: SyncableEventContent): string => {
   const payload = JSON.stringify([
     normalizeText(event.summary),
-    normalizeText(event.description),
+    normalizeEditableDescription(event.description),
     normalizeText(event.location),
     resolveHashedAllDay(event),
   ]);
