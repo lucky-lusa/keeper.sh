@@ -15,6 +15,7 @@ import type {
 import type { MaterializedSyncableEvent, SyncableEvent } from "../../../core/types";
 import { isKeeperEvent } from "../../../core/events/identity";
 import { resolveIsAllDayEvent } from "../../../core/events/all-day";
+import { htmlToPlainText, isHtmlDescription } from "../../../core/events/html-description";
 import {
   assertNoUnsupportedRecurrenceDates,
   assertSupportedRecurrenceTimeZones,
@@ -23,36 +24,7 @@ import {
 const normalizeIcsText = (value: string | undefined): string | undefined =>
   value?.replaceAll(/\r\n?/g, "\n");
 
-const HTML_TAG_PATTERN = /<[^>]*>/g;
-const HTML_ENTITIES: Record<string, string> = {
-  "&nbsp;": " ",
-  "&amp;": "&",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&quot;": "\"",
-  "&apos;": "'",
-  "&#39;": "'",
-};
-const ANCHOR_PATTERN = /<a\b[^>]*?href="([^"]*)"[^>]*?>([\s\S]*?)<\/a>/gi;
 const ICS_LINE_MAX_OCTETS = 75;
-
-const isHtmlDescription = (text: string): boolean => /<\/?\w+[^>]*>/.test(text);
-
-const htmlToPlainText = (html: string): string => {
-  const withAnchorsConverted = html.replace(ANCHOR_PATTERN, (_match, href: string, text: string) => {
-    const plainText = text.replaceAll(HTML_TAG_PATTERN, "").replaceAll(/[\r\n\t ]+/g, " ").trim();
-    if (!plainText || plainText === href) {
-      return href;
-    }
-    return `${plainText} (${href})`;
-  });
-  const withoutTags = withAnchorsConverted.replaceAll(HTML_TAG_PATTERN, "");
-  const decoded = withoutTags.replaceAll(
-    /&(?:nbsp|amp|lt|gt|quot|apos|#39);/g,
-    (entity) => HTML_ENTITIES[entity] ?? entity,
-  );
-  return decoded.replaceAll(/[\r\n\t ]+/g, " ").trim();
-};
 
 const foldIcsLine = (line: string): string => {
   if (Buffer.byteLength(line, "utf8") <= ICS_LINE_MAX_OCTETS) {
@@ -77,9 +49,10 @@ const eventToICalString = (event: MaterializedSyncableEvent, uid: string): strin
 
   const rawDescription = event.description;
   const descriptionIsHtml = Boolean(rawDescription) && isHtmlDescription(rawDescription ?? "");
-  const plainDescription = descriptionIsHtml && rawDescription
-    ? htmlToPlainText(rawDescription)
-    : normalizeIcsText(rawDescription);
+  let plainDescription = normalizeIcsText(rawDescription);
+  if (descriptionIsHtml && rawDescription) {
+    plainDescription = htmlToPlainText(rawDescription);
+  }
 
   const icsEvent: IcsEvent = {
     description: plainDescription,

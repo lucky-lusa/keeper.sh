@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createSyncEventContentHash } from "../../../src/core/events/content-hash";
+import {
+  createEditableEventContentHash,
+  createSyncEventContentHash,
+} from "../../../src/core/events/content-hash";
 
 describe("createSyncEventContentHash", () => {
   it("returns a consistent hash for the same content", () => {
@@ -150,5 +153,33 @@ describe("createSyncEventContentHash", () => {
       ...event,
       exceptionDates: [second, first],
     }));
+  });
+});
+
+describe("createEditableEventContentHash", () => {
+  it("hashes an HTML description the same as its plain-text readback form", () => {
+    /*
+     * A CalDAV destination writes this HTML description as the plain text below and reads it back
+     * as plain text; both sides must hash to the same value or the event re-pushes forever.
+     */
+    const html = "<p>Join the <a href=\"https://example.com/meet\">meeting</a></p>";
+    const plainTextReadback = "Join the meeting (https://example.com/meet)";
+
+    expect(createEditableEventContentHash({ summary: "Sync", description: html }))
+      .toBe(createEditableEventContentHash({ summary: "Sync", description: plainTextReadback }));
+  });
+
+  it("still distinguishes descriptions that differ in their text", () => {
+    const hash1 = createEditableEventContentHash({ summary: "Sync", description: "<p>Agenda A</p>" });
+    const hash2 = createEditableEventContentHash({ summary: "Sync", description: "<p>Agenda B</p>" });
+
+    expect(hash1).not.toBe(hash2);
+  });
+
+  it("leaves plain-text descriptions unchanged", () => {
+    const hash1 = createEditableEventContentHash({ summary: "Sync", description: "Plain notes" });
+    const hash2 = createEditableEventContentHash({ summary: "Sync", description: "Plain notes" });
+
+    expect(hash1).toBe(hash2);
   });
 });
