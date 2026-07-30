@@ -37,6 +37,36 @@ class EventsFetchError extends Error {
 const REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_PAGE_SIZE = 50;
 const SERIES_MASTER_TYPE = "seriesMaster";
+/*
+ * Each series master is expanded through its own paginated /instances request. Running them a few
+ * at a time turns a full resync of a calendar with many recurring series from minutes into seconds
+ * without changing the data fetched. The limit is kept well below Microsoft Graph's per-mailbox
+ * concurrency ceiling so the parallelism does not trigger throttling.
+ */
+const SERIES_MASTER_EXPANSION_CONCURRENCY = 3;
+
+const mapWithConcurrency = async <Item, Result>(
+  items: Item[],
+  limit: number,
+  worker: (item: Item) => Promise<Result>,
+): Promise<Result[]> => {
+  const results: Result[] = [];
+  const queue = items.map((item, index) => ({ index, item }));
+  let cursor = 0;
+  const runWorker = async (): Promise<void> => {
+    while (cursor < queue.length) {
+      const entry = queue[cursor];
+      cursor += 1;
+      if (!entry) {
+        continue;
+      }
+      results[entry.index] = await worker(entry.item);
+    }
+  };
+  const workerCount = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return results;
+};
 const INSTANCES_SELECT = [
   "id",
   "iCalUId",
@@ -261,22 +291,21 @@ const expandSeriesMasters = async (
   timeMax: Date,
   signal?: AbortSignal,
 ): Promise<OutlookCalendarEvent[]> => {
-  const expanded: OutlookCalendarEvent[] = [];
+  const passthrough: OutlookCalendarEvent[] = [];
+  const masterIds: string[] = [];
   for (const event of events) {
-    if (event.type !== SERIES_MASTER_TYPE || !event.id) {
-      expanded.push(event);
-      continue;
+    if (event.type === SERIES_MASTER_TYPE && event.id) {
+      masterIds.push(event.id);
+    } else {
+      passthrough.push(event);
     }
-    expanded.push(...await fetchSeriesMasterInstances(
-      accessToken,
-      calendarId,
-      event.id,
-      timeMin,
-      timeMax,
-      signal,
-    ));
   }
-  return expanded;
+  const instanceGroups = await mapWithConcurrency(
+    masterIds,
+    SERIES_MASTER_EXPANSION_CONCURRENCY,
+    (masterId) => fetchSeriesMasterInstances(accessToken, calendarId, masterId, timeMin, timeMax, signal),
+  );
+  return [...passthrough, ...instanceGroups.flat()];
 };
 
 const deduplicateOutlookEvents = (events: OutlookCalendarEvent[]): OutlookCalendarEvent[] => {
