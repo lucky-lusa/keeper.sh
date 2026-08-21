@@ -159,6 +159,24 @@ const microsoftUserInfoSchema = type({
 });
 type MicrosoftUserInfo = typeof microsoftUserInfoSchema.infer;
 
+const outlookRecurrenceSchema = type({
+  pattern: {
+    type: "string",
+    interval: "number",
+    "daysOfWeek?": "string[]",
+    "dayOfMonth?": "number",
+    "index?": "string",
+    "month?": "number",
+    "firstDayOfWeek?": "string",
+  },
+  range: {
+    type: "string",
+    startDate: "string",
+    "endDate?": "string",
+    "numberOfOccurrences?": "number",
+  },
+});
+
 const outlookEventSchema = type({
   "@removed?": { "reason?": "'deleted' | 'changed'" },
   "body?": type({ "content?": "string", "contentType?": "string" }).or(type("null")),
@@ -174,6 +192,7 @@ const outlookEventSchema = type({
   "originalEndTimeZone?": "string",
   "originalStartTimeZone?": "string",
   "sensitivity?": "string",
+  "recurrence?": outlookRecurrenceSchema.or(type("null")),
   "showAs?": "string",
   "start?": { "dateTime?": "string", "timeZone?": "string" },
   "subject?": "string | null",
