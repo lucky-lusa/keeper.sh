@@ -61,6 +61,7 @@ export interface CalendarDetail {
   ingestFailureCount: number;
   ingestLastFailureAt: string | null;
   providerMissingSince: string | null;
+  markEventsAsPrivate: boolean;
   destinationIds: string[];
   sourceIds: string[];
   unavailableSince: string | null;
